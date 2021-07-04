@@ -134,7 +134,7 @@ class SnakeGame:
         elif np.array_equal(action, [0, 1, 0]):
             next_index = (index + 1) % 4
             new_dir = clockwise_[next_index]
-        else np.array_equal(action, [0, 0, 1]):
+        else:
             next_index = (index + 3) % 4
             new_dir = clockwise_[next_index]
 
@@ -152,19 +152,3 @@ class SnakeGame:
             y -= BLOCK_SIZE
             
         self.head = Point(x, y)
-            
-
-if __name__ == '__main__':
-    game = SnakeGame()
-    
-    # game loop
-    while True:
-        game_over, score = game.play_step()
-        
-        if game_over == True:
-            break
-        
-    print('Final Score', score)
-        
-        
-    pygame.quit()
