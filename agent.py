@@ -3,31 +3,32 @@ import random
 from environment import SnakeGameAI, Direction, Point
 from collections import deque
 import torch
+from model import Linear_QNet, QTrainer
 
-MAX_MEM = 100000
-BATCH_SIZE = 1000
-LEARNING_RATE = 0.001
+MAX_MEM = 100000                                #mamimum length of the remember deque
+BATCH_SIZE = 1000                               #batch size to use for training
+LEARNING_RATE = 0.001                           #learning rate for trainer / optimizer
 
 class Agent:
     def __init__(self):
-        self.n_games = 0
+        self.n_games = 0                        #number of games
         self.epsilon = 0                        #randomness
-        self.gamma = 0                          #discount rate
-        self.memory = deque(maxlen = MAX_MEM)
-        self.model = None
-        self.trainer = None
+        self.gamma = 0.9                          #discount rate
+        self.memory = deque(maxlen = MAX_MEM)   #remember memory
+        self.model = Linear_QNet(11, 256, 3)
+        self.trainer = QTrainer(self.model, LEARNING_RATE, self.gamma)
 
     def get_state(self, env):
         head = env.snake[0]
 
         #defining danger points
-        dpt_u = Point(head.x, head.y - 20)
-        dpt_r = Point(head.x + 20, head.y)
-        dpt_l = Point(head.x - 20, head.y)
-        dpt_d = Point(head.x, head.y + 20)
+        dpt_u = Point(head.x, head.y - 20)      #danger point is up
+        dpt_r = Point(head.x + 20, head.y)      #danger point is right
+        dpt_l = Point(head.x - 20, head.y)      #danger point is left
+        dpt_d = Point(head.x, head.y + 20)      #danger point is down
 
-        #checking direction booleans
-        dir_l = env.direction == Direction.LEFT
+        #checking current direction of travel booleans
+        dir_l = env.direction == Direction.LEFT 
         dir_r = env.direction == Direction.RIGHT
         dir_u = env.direction == Direction.UP
         dir_d = env.direction == Direction.DOWN
@@ -66,28 +67,31 @@ class Agent:
 
         return np.array(state, dtype = int)
 
+    #Function is used to create the train data
     def remember(self, state, action, reward, nxt_state, done):
         self.memory.append((state, action, reward, nxt_state, done))  #will pop from start, if memory exceeds MAX_LENGTH
 
+    #Function is used to get the action to be performed based on the state passed
     def get_action(self, state):
         #tradeoff between exploration and exploitation
         #in the start we need random moves and explore the environment
         #but as we get better, we want to exploit the agent
 
         self.eplison = 80 - self.n_games    #degree of randomness, as the number of games increase degree of randomness decreases
-        final_move = [0, 0, 0]
+        final_move = [0, 0, 0]              #default move
 
         if random.randint(0, 200) < self.epsilon:   #if degree of randomness is less, less times, random moves will be used
             move = random.randint(0, 2)
         else:
-            state0 = torch.tensor(state, dtype = torch.float)
-            prediction = self.model.predict(state0)
-            move = torch.argmax(prediction).item()
+            state0 = torch.tensor(state, dtype = torch.float)   #simply converts state to a tensor
+            prediction = self.model(state0)                     #predicts the next action based on the state tensor
+            move = torch.argmax(prediction).item()              #implemets the new action
             
         final_move[move] = 1
         return final_move
 
-    def train_long_memory(self):
+    def train_long_memory(self):                                #trainer
+
             if len(self.memory) > BATCH_SIZE:
                 mini_sample = random.sample(self.memory, BATCH_SIZE)
             else:
@@ -95,7 +99,6 @@ class Agent:
 
             states, actions, rewards, nxt_states, dones = zip(*mini_sample)        
             self.trainer.train_step(states, actions, rewards, nxt_states, dones)
-
 
     def train_short_memory(self, state, action, reward, nxt_state, done):
         self.trainer.train_step(state, action, reward, nxt_state, done)
